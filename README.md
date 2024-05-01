@@ -9,64 +9,6 @@ The FileManager package is a powerful and flexible solution for handling and pro
 - Recipe-based processing: Define processing recipes that specify a sequence of processing steps to be applied to files.
 - Upload handling: Handle file uploads and trigger processing recipes based on the uploaded files.
 
-## Included Plugins / Processors
-
-The FileManager package comes with several built-in plugins and processors that can be used to manipulate and process files. Here's a list and description of the plugins and processors available:
-
-### Image Manipulation Plugin
-
-The Image Manipulation plugin allows you to perform various image processing operations on image files. It supports the following parameters:
-
-- `format`: The output format of the processed image. Supported formats: "jpg", "png", "webp".
-- `width`: The desired width of the processed image in pixels.
-- `height`: The desired height of the processed image in pixels.
-- `aspect_ratio`: The desired aspect ratio of the processed image. Supported aspect ratios: "1:1", "4:3", "16:9", "21:9".
-
-This plugin can be used to resize, crop, and convert image files to different formats.
-
-### PDF Text Extractor Plugin
-
-The PDF Text Extractor plugin allows you to extract text from PDF files and convert it to plain text or Markdown format. It supports the following parameter:
-
-- `output_format`: The output format of the extracted text. Supported formats: "text", "markdown".
-
-This plugin is useful for extracting text content from PDF files and converting it to a more readable and editable format.
-
-### PDF Manipulation Plugin
-
-The PDF Manipulation plugin allows you to perform various operations on PDF files, such as extracting pages, merging PDFs, compressing PDFs, and reordering pages. It supports the following parameters:
-
-- `manipulation_type`: The type of manipulation to perform on the PDF. Supported types: "extract", "merge", "compress", "reorder".
-- `start_page` (for "extract"): The starting page number to extract (inclusive).
-- `end_page` (for "extract"): The ending page number to extract (inclusive).
-- `merge_files` (for "merge"): An array of file names to be merged with the base PDF.
-- `compression_level` (for "compress"): The compression level to apply. Supported levels: "low", "medium", "high".
-- `page_order` (for "reorder"): An array of page numbers representing the desired order of pages.
-
-This plugin provides powerful capabilities for manipulating PDF files, such as extracting specific pages, merging multiple PDFs into one, compressing PDFs to reduce file size, and reordering pages.
-
-### ClamAV Plugin
-
-The ClamAV plugin allows you to scan files for viruses using the ClamAV antivirus engine. It doesn't require any additional parameters.
-
-This plugin is useful for ensuring the security of uploaded files by scanning them for known viruses and malware using the ClamAV engine.
-
-These plugins and processors can be used individually or chained together in processing recipes to create custom file processing workflows. The FileManager package provides flexibility and extensibility, allowing you to easily add new plugins and processors to meet your specific requirements.
-
-For detailed information on how to use these plugins and processors, please refer to the documentation and examples provided in the README file.
-
-## Versions
-
-- v0.1.0: Initial release with basic file storage and retrieval functionality. File Upload handling and recipe-based processing with a few example recipes and processor plugins.
-
-## Installation
-
-To use the FileManager package in your Go project, you need to install it using the following command:
-
-```bash
-go get github.com/itsatony/go-filemanager
-```
-
 ## Usage
 
 ### Initialization
@@ -256,6 +198,106 @@ output_formats:
 ```
 
 This recipe processes uploaded files based on their MIME type. If the uploaded file is an image, it is converted to JPEG format and resized to 1200x800 pixels. If the uploaded file is a PDF, it is compressed using the medium compression level. The processed files are stored as public (for images) and private (for PDFs) files.
+
+## Included Plugins / Processors
+
+The FileManager package comes with several built-in plugins and processors that can be used to manipulate and process files. Here's a list and description of the plugins and processors available:
+
+### Image Manipulation Plugin
+
+The Image Manipulation plugin allows you to perform various image processing operations on image files. It supports the following parameters:
+
+- `format`: The output format of the processed image. Supported formats: "jpg", "png", "webp".
+- `width`: The desired width of the processed image in pixels.
+- `height`: The desired height of the processed image in pixels.
+- `aspect_ratio`: The desired aspect ratio of the processed image. Supported aspect ratios: "1:1", "4:3", "16:9", "21:9".
+
+This plugin can be used to resize, crop, and convert image files to different formats.
+
+### PDF Text Extractor Plugin
+
+The PDF Text Extractor plugin allows you to extract text from PDF files and convert it to plain text or Markdown format. It supports the following parameter:
+
+- `output_format`: The output format of the extracted text. Supported formats: "text", "markdown".
+
+This plugin is useful for extracting text content from PDF files and converting it to a more readable and editable format.
+
+### PDF Manipulation Plugin
+
+The PDF Manipulation plugin allows you to perform various operations on PDF files, such as extracting pages, merging PDFs, compressing PDFs, and reordering pages. It supports the following parameters:
+
+- `manipulation_type`: The type of manipulation to perform on the PDF. Supported types: "extract", "merge", "compress", "reorder".
+- `start_page` (for "extract"): The starting page number to extract (inclusive).
+- `end_page` (for "extract"): The ending page number to extract (inclusive).
+- `merge_files` (for "merge"): An array of file names to be merged with the base PDF.
+- `compression_level` (for "compress"): The compression level to apply. Supported levels: "low", "medium", "high".
+- `page_order` (for "reorder"): An array of page numbers representing the desired order of pages.
+
+This plugin provides powerful capabilities for manipulating PDF files, such as extracting specific pages, merging multiple PDFs into one, compressing PDFs to reduce file size, and reordering pages.
+
+### ClamAV Plugin
+
+The ClamAV plugin allows you to scan files for viruses using the ClamAV antivirus engine. It doesn't require any additional parameters.
+
+This plugin is useful for ensuring the security of uploaded files by scanning them for known viruses and malware using the ClamAV engine.
+
+These plugins and processors can be used individually or chained together in processing recipes to create custom file processing workflows. The FileManager package provides flexibility and extensibility, allowing you to easily add new plugins and processors to meet your specific requirements.
+
+For detailed information on how to use these plugins and processors, please refer to the documentation and examples provided in the README file.
+
+Here's a section for the Format Converter Processor plugin that you can add to the README file, along with an examples section:
+
+## Format Converter Processor Plugin
+
+The Format Converter Processor plugin allows you to convert various file formats into text-based versions suitable for further processing or injection into Large Language Models (LLMs). It currently supports the following file format conversions:
+
+- DOCX to plain text
+- DOCX to Markdown
+- Excel (XLS, XLSX) to CSV
+
+The plugin uses the following libraries for file format conversions:
+
+- `github.com/yuin/goldmark` for DOCX to Markdown conversion
+- `github.com/360EntSecGroup-Skylar/excelize/v2` for Excel to CSV conversion
+
+### Limitations
+
+- The DOCX to plain text conversion is currently a placeholder implementation that assumes the content is already in plain text format. You may need to replace it with a custom implementation or a library that converts DOCX to plain text.
+- The Excel to CSV conversion currently converts only the first sheet of the Excel file. If you need to handle multiple sheets or specify a specific sheet, you may need to modify the `convertExcelToCSV` function accordingly.
+
+Please refer to the plugin's source code for more details on its implementation and functionality.
+
+## Exif Metadata Extractor Plugin
+
+The Exif Metadata Extractor plugin allows you to extract Exif metadata from image files. It retrieves information such as camera make, model, capture date and time, GPS coordinates, focal length, aperture, exposure time, and ISO speed ratings.
+
+The plugin uses the following library for Exif metadata extraction:
+
+- `github.com/rwcarlsen/goexif/exif` for extracting Exif metadata from image files
+
+### Exif Metadata Extractor Usage
+
+To use the Exif Metadata Extractor plugin, include it in your processing pipeline by adding the following configuration to your recipe:
+
+```yaml
+processing_steps:
+  - plugin_name: exif_metadata_extractor
+```
+
+The plugin will automatically detect image files based on their MIME type and extract the Exif metadata.
+
+## Versions
+
+- v0.1.2: Minor updates and improvements to the FileManager package. Added a processor plugin for file-format conversion of .docx and .xlsx to text, markdown and csv. added exif metadata extraction processor.
+- v0.1.0: Initial release with basic file storage and retrieval functionality. File Upload handling and recipe-based processing with a few example recipes and processor plugins.
+
+## Installation
+
+To use the FileManager package in your Go project, you need to install it using the following command:
+
+```bash
+go get github.com/itsatony/go-filemanager
+```
 
 ## Contributing
 

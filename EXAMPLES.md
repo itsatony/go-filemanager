@@ -87,6 +87,128 @@ processing_steps:
   - plugin_name: clamav
 ```
 
+## Format Converter Processor Plugin
+
+The Format Converter Processor plugin allows you to convert various file formats into text-based versions suitable for further processing or injection into Large Language Models (LLMs). It currently supports the following file format conversions:
+
+- DOCX to plain text
+- DOCX to Markdown
+- Excel (XLS, XLSX) to CSV
+
+### Usage
+
+To use the Format Converter Processor plugin, include it in your processing pipeline by adding the following configuration to your recipe:
+
+```yaml
+processing_steps:
+  - plugin_name: format_converter
+```
+
+The plugin will automatically detect the file format based on the MIME type and apply the appropriate conversion.
+
+### Examples
+
+#### Converting DOCX to Plain Text
+
+To convert a DOCX file to plain text, simply include the DOCX file in the processing pipeline:
+
+```yaml
+name: docx_to_text_recipe
+accepted_mime_types:
+  - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+processing_steps:
+  - plugin_name: format_converter
+output_formats:
+  - format: txt
+    target_file_name: converted_text.txt
+    storage_type: private
+```
+
+The plugin will attempt to convert the DOCX file to plain text. If the conversion fails, it will fall back to converting the DOCX file to Markdown.
+
+#### Converting DOCX to Markdown
+
+To convert a DOCX file to Markdown, include the DOCX file in the processing pipeline:
+
+```yaml
+name: docx_to_markdown_recipe
+accepted_mime_types:
+  - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+processing_steps:
+  - plugin_name: format_converter
+output_formats:
+  - format: md
+    target_file_name: converted_markdown.md
+    storage_type: private
+```
+
+The plugin will convert the DOCX file to Markdown format using the `goldmark` library.
+
+#### Converting Excel to CSV
+
+To convert an Excel file (XLS or XLSX) to CSV, include the Excel file in the processing pipeline:
+
+```yaml
+name: excel_to_csv_recipe
+accepted_mime_types:
+  - application/vnd.ms-excel
+  - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+processing_steps:
+  - plugin_name: format_converter
+output_formats:
+  - format: csv
+    target_file_name: converted_csv.csv
+    storage_type: private
+```
+
+The plugin will convert the Excel file to CSV format using the `excelize` library. Note that the plugin currently converts only the first sheet of the Excel file to CSV.
+
+### Limitations
+
+- The DOCX to plain text conversion is currently a placeholder implementation that assumes the content is already in plain text format. You may need to replace it with a custom implementation or a library that converts DOCX to plain text.
+- The Excel to CSV conversion currently converts only the first sheet of the Excel file. If you need to handle multiple sheets or specify a specific sheet, you may need to modify the `convertExcelToCSV` function accordingly.
+
+Please refer to the plugin's source code for more details on its implementation and functionality.
+
+## Exif Metadata Extractor Plugin
+
+The Exif Metadata Extractor plugin allows you to extract Exif metadata from image files. It retrieves information such as camera make, model, capture date and time, GPS coordinates, focal length, aperture, exposure time, and ISO speed ratings.
+
+### Exif Metadata Extractor Usage
+
+To use the Exif Metadata Extractor plugin, include it in your processing pipeline by adding the following configuration to your recipe:
+
+```yaml
+processing_steps:
+  - plugin_name: exif_metadata_extractor
+```
+
+The plugin will automatically detect image files based on their MIME type and extract the Exif metadata.
+
+### Exif Metadata Extractor Examples
+
+#### Extracting Exif Metadata from Image Files
+
+To extract Exif metadata from image files, include the image files in the processing pipeline:
+
+```yaml
+name: exif_metadata_extraction_recipe
+accepted_mime_types:
+  - image/jpeg
+  - image/png
+processing_steps:
+  - plugin_name: exif_metadata_extractor
+```
+
+The plugin will extract the available Exif metadata from the image files and store it in the `MetaData` field of the `ManagedFile` object under the key "exif". The extracted metadata will be in the form of a map, where the keys are the Exif field names and the values are the corresponding metadata values.
+
+### Exif Metadata Extractor Limitations
+
+- The plugin relies on the `github.com/rwcarlsen/goexif/exif` library for Exif metadata extraction. It may not support all possible Exif fields or handle all variations of Exif data.
+- If an image file doesn't contain Exif metadata or if certain Exif fields are not available, the corresponding entries in the extracted metadata map will be missing.
+
+Please refer to the plugin's source code for more details on its implementation and functionality.
+
 ## Chained Processing
 
 The FileManager package allows you to chain multiple processing plugins together to create complex file processing workflows. You can define a sequence of processing steps in a recipe, and the FileManager will execute them in the specified order.
@@ -132,7 +254,7 @@ In this example, the chained processing recipe performs the following steps:
 
 This is just one example of how you can chain multiple processing plugins together to achieve complex file processing workflows. You can customize the processing steps and their parameters based on your specific requirements.
 
-## Conclusion
+v## Conclusion
 
 The FileManager package provides a flexible and extensible framework for handling and processing files in Go. With its plugin-based architecture and support for chained processing, you can easily create custom file processing workflows tailored to your needs.
 
