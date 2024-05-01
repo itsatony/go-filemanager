@@ -4,6 +4,8 @@ go 1.22.0
 
 require github.com/unidoc/unioffice v1.31.0
 
+require github.com/matoous/go-nanoid/v2 v2.0.0 // indirect
+
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.5.0 // indirect
 	github.com/PuerkitoBio/goquery v1.8.1 // indirect

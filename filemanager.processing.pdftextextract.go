@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/unidoc/unipdf/v3/extractor"
@@ -12,7 +13,7 @@ import (
 
 type PDFTextExtractorPlugin struct{}
 
-func (p *PDFTextExtractorPlugin) Process(files []*ManagedFile) ([]*ManagedFile, error) {
+func (p *PDFTextExtractorPlugin) Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error) {
 	var processedFiles []*ManagedFile
 
 	for _, file := range files {
@@ -20,6 +21,13 @@ func (p *PDFTextExtractorPlugin) Process(files []*ManagedFile) ([]*ManagedFile, 
 			processedFiles = append(processedFiles, file)
 			continue
 		}
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "PDFTextExtractor",
+			StatusDescription: fmt.Sprintf("Extracting text from PDF: %s", file.FileName),
+		}
+		fileProcess.AddProcessingUpdate(status)
 
 		reader := bytes.NewReader(file.Content)
 		pdfReader, err := model.NewPdfReader(reader)

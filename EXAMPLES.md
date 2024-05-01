@@ -254,7 +254,7 @@ In this example, the chained processing recipe performs the following steps:
 
 This is just one example of how you can chain multiple processing plugins together to achieve complex file processing workflows. You can customize the processing steps and their parameters based on your specific requirements.
 
-v## Conclusion
+## Conclusion
 
 The FileManager package provides a flexible and extensible framework for handling and processing files in Go. With its plugin-based architecture and support for chained processing, you can easily create custom file processing workflows tailored to your needs.
 

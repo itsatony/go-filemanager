@@ -2,26 +2,27 @@
 package filemanager
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
-func (fm *FileManager) HandleFileUpload(r io.Reader, statusCh chan<- ProcessingStatus) (*ManagedFile, error) {
+func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, statusCh chan<- *FileProcess) (*ManagedFile, error) {
 	tempFile, err := os.CreateTemp(fm.localTempPath, "upload-*")
 	if err != nil {
 		return nil, err
 	}
 	defer tempFile.Close()
 
-	// Create a new progress reader to track upload progress
 	progressReader := &ProgressReader{
-		Reader:   r,
-		Size:     0,
-		Uploaded: 0,
-		StatusCh: statusCh,
+		Reader:      r,
+		Size:        0,
+		Uploaded:    0,
+		StatusCh:    statusCh,
+		FileProcess: fileProcess,
 	}
 
-	// Copy the file content to the temporary file using the progress reader
 	_, err = io.Copy(tempFile, progressReader)
 	if err != nil {
 		return nil, err
@@ -39,10 +40,11 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, statusCh chan<- ProcessingS
 }
 
 type ProgressReader struct {
-	Reader   io.Reader
-	Size     int64
-	Uploaded int64
-	StatusCh chan<- ProcessingStatus
+	Reader      io.Reader
+	Size        int64
+	Uploaded    int64
+	StatusCh    chan<- *FileProcess
+	FileProcess *FileProcess
 }
 
 func (r *ProgressReader) Read(p []byte) (int, error) {
@@ -60,10 +62,17 @@ func (r *ProgressReader) Read(p []byte) (int, error) {
 
 	if r.Size > 0 {
 		percentage := int(float64(r.Uploaded) / float64(r.Size) * 100)
+		status := ProcessingStatus{
+			ProcessID:         r.FileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FileUpload",
+			StatusDescription: fmt.Sprintf("Uploading file: %s", r.FileProcess.IncomingFileName),
+			Percentage:        percentage,
+		}
+		r.FileProcess.AddProcessingUpdate(status)
 		select {
-		case r.StatusCh <- ProcessingStatus{Percentage: percentage}:
+		case r.StatusCh <- r.FileProcess:
 		default:
-			// Non-blocking send to avoid blocking the upload progress
 		}
 	}
 

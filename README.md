@@ -34,6 +34,9 @@ To add processing plugins to the FileManager, use the `AddProcessingPlugin` meth
 fm.AddProcessingPlugin("image_manipulation", &filemanager.ImageManipulationPlugin{})
 fm.AddProcessingPlugin("pdf_manipulation", &filemanager.PDFManipulationPlugin{})
 fm.AddProcessingPlugin("pdf_text_extractor", &filemanager.PDFTextExtractorPlugin{})
+fm.AddProcessingPlugin("clamav", &filemanager.ClamAVPlugin{})
+fm.AddProcessingPlugin("format_converter", &filemanager.FormatConverterPlugin{})
+fm.AddProcessingPlugin("exif_metadata_extractor", &filemanager.ExifMetadataExtractorPlugin{})
 ```
 
 ### Loading Recipes
@@ -54,29 +57,22 @@ The recipe files should be in YAML format and stored in the specified directory.
 To process a file using a specific recipe, use the `ProcessFile` method:
 
 ```go
-file := &filemanager.ManagedFile{
-    FileName: "example.jpg",
-    Content:  fileContent,
-    MetaData: map[string]interface{}{
-        "format": "webp",
-        "width":  800,
-        "height": 600,
-    },
-}
+fileProcess := filemanager.NewFileProcess("example.jpg", "image_processing_recipe")
 
-statusCh := make(chan filemanager.ProcessingStatus)
+statusCh := make(chan *filemanager.FileProcess)
 go func() {
-    fm.ProcessFile(file, "image_processing_recipe", statusCh)
+    fm.ProcessFile(file, "image_processing_recipe", fileProcess, statusCh)
 }()
 
-for status := range statusCh {
-    if status.Error != nil {
+for processUpdate := range statusCh {
+    latestStatus := processUpdate.GetLatestProcessingStatus()
+    if latestStatus.Error != nil {
         // Handle the processing error
-    } else if status.Done {
+    } else if latestStatus.Done {
         // Processing completed successfully
     } else {
         // Processing progress update
-        fmt.Printf("Processing progress: %d%%\n", status.Percentage)
+        fmt.Printf("Processing progress: %d%% - %s\n", latestStatus.Percentage, latestStatus.StatusDescription)
     }
 }
 ```
@@ -97,25 +93,27 @@ If the status indicates that the processing is done (status.Done is true), we ha
 If the status is neither an error nor a completion status, it represents an upload or processing progress update. We print the progress percentage using status.Percentage.
 
 ```go
-statusCh := make(chan filemanager.ProcessingStatus)
+fileProcess := filemanager.NewFileProcess("uploaded_file.pdf", "upload_processing_recipe")
+
+statusCh := make(chan *filemanager.FileProcess)
 go func() {
-    file, err := fm.HandleFileUpload(fileReader, statusCh)
+    file, err := fm.HandleFileUpload(fileReader, fileProcess, statusCh)
     if err != nil {
-        // Handle the upload error
+        fmt.Printf("Upload error: %v\n", err)
+        return
     }
     
-    // Trigger a processing recipe
-    fm.ProcessFile(file, "upload_processing_recipe", statusCh)
+    fm.ProcessFile(file, "upload_processing_recipe", fileProcess, statusCh)
 }()
 
-for status := range statusCh {
-    if status.Error != nil {
-        // Handle the processing error
-    } else if status.Done {
-        // Processing completed successfully
+for processUpdate := range statusCh {
+    latestStatus := processUpdate.GetLatestProcessingStatus()
+    if latestStatus.Error != nil {
+        fmt.Printf("Processing error: %v\n", latestStatus.Error)
+    } else if latestStatus.Done {
+        fmt.Println("Processing completed successfully")
     } else {
-        // Upload or processing progress update
-        fmt.Printf("Progress: %d%%\n", status.Percentage)
+        fmt.Printf("Progress: %d%% - %s\n", latestStatus.Percentage, latestStatus.StatusDescription)
     }
 }
 ```
@@ -288,6 +286,7 @@ The plugin will automatically detect image files based on their MIME type and ex
 
 ## Versions
 
+- v0.2.0: updated processUpdates to include more information.
 - v0.1.2: Minor updates and improvements to the FileManager package. Added a processor plugin for file-format conversion of .docx and .xlsx to text, markdown and csv. added exif metadata extraction processor.
 - v0.1.0: Initial release with basic file storage and retrieval functionality. File Upload handling and recipe-based processing with a few example recipes and processor plugins.
 

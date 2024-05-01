@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 	"github.com/yuin/goldmark"
@@ -15,12 +16,20 @@ import (
 
 type FormatConverterPlugin struct{}
 
-func (p *FormatConverterPlugin) Process(files []*ManagedFile) ([]*ManagedFile, error) {
+func (p *FormatConverterPlugin) Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error) {
 	var processedFiles []*ManagedFile
 
 	for _, file := range files {
 		var convertedContent []byte
 		var err error
+
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FormatConverter",
+			StatusDescription: fmt.Sprintf("Converting file format: %s", file.FileName),
+		}
+		fileProcess.AddProcessingUpdate(status)
 
 		switch strings.ToLower(file.MimeType) {
 		case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":

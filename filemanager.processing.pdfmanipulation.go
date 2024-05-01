@@ -3,6 +3,7 @@ package filemanager
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/unidoc/unipdf/v3/model"
 	"github.com/unidoc/unipdf/v3/model/optimize"
@@ -10,7 +11,7 @@ import (
 
 type PDFManipulationPlugin struct{}
 
-func (p *PDFManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile, error) {
+func (p *PDFManipulationPlugin) Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error) {
 	var processedFiles []*ManagedFile
 
 	for _, file := range files {
@@ -18,7 +19,13 @@ func (p *PDFManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile, e
 			processedFiles = append(processedFiles, file)
 			continue
 		}
-
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "PDFManipulation",
+			StatusDescription: fmt.Sprintf("Manipulating PDF: %s", file.FileName),
+		}
+		fileProcess.AddProcessingUpdate(status)
 		reader := bytes.NewReader(file.Content)
 		pdfReader, err := model.NewPdfReader(reader)
 		if err != nil {

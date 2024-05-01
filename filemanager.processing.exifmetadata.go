@@ -3,13 +3,14 @@ package filemanager
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/rwcarlsen/goexif/exif"
 )
 
 type ExifMetadataExtractorPlugin struct{}
 
-func (p *ExifMetadataExtractorPlugin) Process(files []*ManagedFile) ([]*ManagedFile, error) {
+func (p *ExifMetadataExtractorPlugin) Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error) {
 	var processedFiles []*ManagedFile
 
 	for _, file := range files {
@@ -17,7 +18,13 @@ func (p *ExifMetadataExtractorPlugin) Process(files []*ManagedFile) ([]*ManagedF
 			processedFiles = append(processedFiles, file)
 			continue
 		}
-
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "ExifMetadataExtractor",
+			StatusDescription: fmt.Sprintf("Extracting Exif metadata from image: %s", file.FileName),
+		}
+		fileProcess.AddProcessingUpdate(status)
 		exifData, err := extractExifMetadata(file.Content)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract Exif metadata: %v", err)

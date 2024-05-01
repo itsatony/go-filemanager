@@ -4,7 +4,6 @@ package filemanager
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -16,8 +15,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var ErrLocalFileNotFound = errors.New("local file not found")
-var ErrUrlNotMapped = errors.New("url not mapped to local file")
+var (
+	ErrLocalFileNotFound = errors.New("local file not found")
+	ErrUrlNotMapped      = errors.New("url not mapped to local file")
+)
+
+const FILE_PROCESS_ID_LENGTH = 16
+const FILE_PROCESS_ID_PREFIX = "FP"
 
 type FileStorageType string
 
@@ -26,6 +30,33 @@ const (
 	FileStorageTypeTemp    FileStorageType = "temp"
 	FileStorageTypePublic  FileStorageType = "public"
 )
+
+type FileProcess struct {
+	ID                string
+	IncomingFileName  string
+	RecipyName        string
+	ProcessingUpdates []ProcessingStatus
+}
+
+func (fp *FileProcess) AddProcessingUpdate(update ProcessingStatus) {
+	fp.ProcessingUpdates = append(fp.ProcessingUpdates, update)
+}
+
+func (fp *FileProcess) GetLatestProcessingStatus() *ProcessingStatus {
+	if len(fp.ProcessingUpdates) == 0 {
+		return nil
+	}
+	return &fp.ProcessingUpdates[len(fp.ProcessingUpdates)-1]
+}
+
+func NewFileProcess(incomingFileName, recipeName string) *FileProcess {
+	id := NID(FILE_PROCESS_ID_PREFIX, FILE_PROCESS_ID_LENGTH)
+	return &FileProcess{
+		ID:               id,
+		IncomingFileName: incomingFileName,
+		RecipyName:       recipeName,
+	}
+}
 
 type FileManager struct {
 	publicLocalBasePath  string
@@ -58,7 +89,7 @@ func (fm *FileManager) LoadRecipes(recipesDir string) error {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 
-	files, err := ioutil.ReadDir(recipesDir)
+	files, err := os.ReadDir(recipesDir)
 	if err != nil {
 		return err
 	}
@@ -88,6 +119,15 @@ func (fm *FileManager) LoadRecipes(recipesDir string) error {
 	}
 
 	return nil
+}
+
+func (fm *FileManager) GetRecipe(name string) (Recipe, error) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+	if _, ok := fm.recipes[name]; !ok {
+		return Recipe{}, ErrRecipeNotFound
+	}
+	return fm.recipes[name], nil
 }
 
 func (aifm *FileManager) GetLocalPathForFile(target FileStorageType, filename string) string {

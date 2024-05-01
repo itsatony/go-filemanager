@@ -4,6 +4,7 @@ package filemanager
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 var (
@@ -14,7 +15,7 @@ var (
 )
 
 type ProcessingPlugin interface {
-	Process(files []*ManagedFile) ([]*ManagedFile, error)
+	Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error)
 }
 
 type ProcessingStep struct {
@@ -38,28 +39,58 @@ type Recipe struct {
 }
 
 type ProcessingStatus struct {
-	Percentage int
-	Error      error
-	Done       bool
+	ProcessID         string
+	TimeStamp         int // js timestamp in unix milliseconds
+	ProcessorName     string
+	StatusDescription string
+	Percentage        int
+	Error             error
+	Done              bool
 }
 
-func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, statusCh chan<- ProcessingStatus) {
+func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, fileProcess *FileProcess, statusCh chan<- *FileProcess) {
 	defer close(statusCh)
 
 	recipe, ok := fm.recipes[recipeName]
 	if !ok {
-		statusCh <- ProcessingStatus{Error: ErrRecipeNotFound, Done: true}
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "RecipeCheck",
+			StatusDescription: fmt.Sprintf("Recipe not found: %s", recipeName),
+			Error:             ErrRecipeNotFound,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 		return
 	}
 
-	// Validate the file against the recipe's accepted MIME types and file size constraints
 	if !isValidMimeType(file.MimeType, recipe.AcceptedMimeTypes) {
-		statusCh <- ProcessingStatus{Error: ErrInvalidMimeType, Done: true}
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "MimeTypeCheck",
+			StatusDescription: fmt.Sprintf("Invalid MIME type: %s", file.MimeType),
+			Error:             ErrInvalidMimeType,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 		return
 	}
 
 	if file.FileSize < recipe.MinFileSize || file.FileSize > recipe.MaxFileSize {
-		statusCh <- ProcessingStatus{Error: ErrInvalidFileSize, Done: true}
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FileSizeCheck",
+			StatusDescription: fmt.Sprintf("Invalid file size: %d bytes", file.FileSize),
+			Error:             ErrInvalidFileSize,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 		return
 	}
 
@@ -68,24 +99,49 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, statusC
 	for _, step := range recipe.ProcessingSteps {
 		plugin, ok := fm.processingPlugins[step.PluginName]
 		if !ok {
-			statusCh <- ProcessingStatus{Error: ErrProcessingPluginNotFound, Done: true}
+			status := ProcessingStatus{
+				ProcessID:         fileProcess.ID,
+				TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+				ProcessorName:     step.PluginName,
+				StatusDescription: fmt.Sprintf("Processing plugin not found: %s", step.PluginName),
+				Error:             ErrProcessingPluginNotFound,
+				Done:              true,
+			}
+			fileProcess.AddProcessingUpdate(status)
+			statusCh <- fileProcess
 			return
 		}
 
-		processedFiles, err := plugin.Process(files)
+		processedFiles, err := plugin.Process(files, fileProcess)
 		if err != nil {
-			statusCh <- ProcessingStatus{Error: err, Done: true}
+			status := ProcessingStatus{
+				ProcessID:         fileProcess.ID,
+				TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+				ProcessorName:     step.PluginName,
+				StatusDescription: fmt.Sprintf("Processing failed: %v", err),
+				Error:             err,
+				Done:              true,
+			}
+			fileProcess.AddProcessingUpdate(status)
+			statusCh <- fileProcess
 			return
 		}
 
 		files = processedFiles
-		statusCh <- ProcessingStatus{Percentage: (len(files) * 100) / len(recipe.ProcessingSteps)}
+		percentage := (len(files) * 100) / len(recipe.ProcessingSteps)
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     step.PluginName,
+			StatusDescription: fmt.Sprintf("Processing step completed: %s", step.PluginName),
+			Percentage:        percentage,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 	}
 
-	// Store the processed files based on the output formats and target file names defined in the recipe
 	for _, outputFormat := range recipe.OutputFormats {
 		for _, file := range files {
-			// Set the storage type and update the file URL based on the storage type
 			switch outputFormat.StorageType {
 			case FileStorageTypePrivate:
 				file.LocalFilePath = fm.GetPrivateLocalFilePath(outputFormat.TargetFileName)
@@ -95,20 +151,46 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, statusC
 				file.LocalFilePath = fm.GetPublicLocalFilePath(outputFormat.TargetFileName)
 				file.URL, _ = fm.GetPublicUrlForFile(file.LocalFilePath)
 			default:
-				statusCh <- ProcessingStatus{Error: fmt.Errorf("invalid storage type: %s", outputFormat.StorageType), Done: true}
+				status := ProcessingStatus{
+					ProcessID:         fileProcess.ID,
+					TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+					ProcessorName:     "OutputFormatCheck",
+					StatusDescription: fmt.Sprintf("Invalid storage type: %s", outputFormat.StorageType),
+					Error:             fmt.Errorf("invalid storage type: %s", outputFormat.StorageType),
+					Done:              true,
+				}
+				fileProcess.AddProcessingUpdate(status)
+				statusCh <- fileProcess
 				return
 			}
 
-			// Save the processed file
 			err := file.Save()
 			if err != nil {
-				statusCh <- ProcessingStatus{Error: err, Done: true}
+				status := ProcessingStatus{
+					ProcessID:         fileProcess.ID,
+					TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+					ProcessorName:     "FileSave",
+					StatusDescription: fmt.Sprintf("Failed to save file: %v", err),
+					Error:             err,
+					Done:              true,
+				}
+				fileProcess.AddProcessingUpdate(status)
+				statusCh <- fileProcess
 				return
 			}
 		}
 	}
 
-	statusCh <- ProcessingStatus{Percentage: 100, Done: true}
+	status := ProcessingStatus{
+		ProcessID:         fileProcess.ID,
+		TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+		ProcessorName:     "FileProcessing",
+		StatusDescription: "File processing completed",
+		Percentage:        100,
+		Done:              true,
+	}
+	fileProcess.AddProcessingUpdate(status)
+	statusCh <- fileProcess
 }
 
 func isValidMimeType(mimeType string, acceptedMimeTypes []string) bool {

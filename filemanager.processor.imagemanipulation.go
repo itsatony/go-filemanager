@@ -7,13 +7,14 @@ import (
 	"mime"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/disintegration/imaging"
 )
 
 type ImageManipulationPlugin struct{}
 
-func (p *ImageManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile, error) {
+func (p *ImageManipulationPlugin) Process(files []*ManagedFile, fileProcess *FileProcess) ([]*ManagedFile, error) {
 	var processedFiles []*ManagedFile
 
 	for _, file := range files {
@@ -21,7 +22,14 @@ func (p *ImageManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile,
 			processedFiles = append(processedFiles, file)
 			continue
 		}
-
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "ImageManipulation",
+			StatusDescription: fmt.Sprintf("Processing file(%s)", file.FileName),
+			Error:             nil,
+		}
+		fileProcess.AddProcessingUpdate(status)
 		img, err := imaging.Decode(bytes.NewReader(file.Content))
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode image: %v", err)
@@ -30,7 +38,10 @@ func (p *ImageManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile,
 		// Perform image manipulation based on the specified parameters
 		params := file.MetaData
 		if val, ok := params["format"]; ok {
-			format := val.(string)
+			format, ok := val.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid format parameter: %v", val)
+			}
 			img, err = convertImageFormat(img, format)
 			if err != nil {
 				return nil, err
@@ -40,17 +51,28 @@ func (p *ImageManipulationPlugin) Process(files []*ManagedFile) ([]*ManagedFile,
 		}
 
 		if val, ok := params["width"]; ok {
-			width := int(val.(float64))
+			widthFloat, ok := val.(float64)
+			if !ok {
+				return nil, fmt.Errorf("invalid width parameter: %v", val)
+			}
+			width := int(widthFloat)
 			img = imaging.Resize(img, width, 0, imaging.Lanczos)
 		}
 
 		if val, ok := params["height"]; ok {
-			height := int(val.(float64))
+			heightFloat, ok := val.(float64)
+			if !ok {
+				return nil, fmt.Errorf("invalid height parameter: %v", val)
+			}
+			height := int(heightFloat)
 			img = imaging.Resize(img, 0, height, imaging.Lanczos)
 		}
 
 		if val, ok := params["aspect_ratio"]; ok {
-			aspectRatio := val.(string)
+			aspectRatio, ok := val.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid aspect_ratio parameter: %v", val)
+			}
 			img, err = cropToAspectRatio(img, aspectRatio)
 			if err != nil {
 				return nil, err
