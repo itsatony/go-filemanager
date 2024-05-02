@@ -11,6 +11,16 @@ import (
 func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, statusCh chan<- *FileProcess) (*ManagedFile, error) {
 	tempFile, err := os.CreateTemp(fm.localTempPath, "upload-*")
 	if err != nil {
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FileUpload",
+			StatusDescription: "Failed to create temporary file",
+			Error:             err,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 		return nil, err
 	}
 	defer tempFile.Close()
@@ -25,6 +35,16 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, s
 
 	_, err = io.Copy(tempFile, progressReader)
 	if err != nil {
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FileUpload",
+			StatusDescription: "Failed to save uploaded file",
+			Error:             err,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+		statusCh <- fileProcess
 		return nil, err
 	}
 
@@ -35,6 +55,24 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, s
 
 	managedFile.UpdateMimeType()
 	managedFile.UpdateFilesize()
+
+	resultingFile := ProcessingResultFile{
+		FileName:      managedFile.FileName,
+		LocalFilePath: managedFile.LocalFilePath,
+		FileSize:      managedFile.FileSize,
+		MimeType:      managedFile.MimeType,
+	}
+
+	status := ProcessingStatus{
+		ProcessID:         fileProcess.ID,
+		TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+		ProcessorName:     "FileUpload",
+		StatusDescription: "File uploaded successfully",
+		Done:              false,
+		ResultingFiles:    []ProcessingResultFile{resultingFile},
+	}
+	fileProcess.AddProcessingUpdate(status)
+	statusCh <- fileProcess
 
 	return managedFile, nil
 }

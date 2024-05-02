@@ -2,6 +2,10 @@
 
 The FileManager package is a powerful and flexible solution for handling and processing files in Go. It provides a convenient way to manage file storage, retrieval, and processing using a plugin-based architecture.
 
+## Versions
+
+- v0.3.0 Added support for multiple output files, improved error handling, and enhanced processing status updates with resulting file information.
+
 ## Features
 
 - File storage and retrieval: Store and retrieve files from different storage types (public, private, temporary).
@@ -103,15 +107,25 @@ go func() {
         return
     }
     
-    fm.ProcessFile(file, "upload_processing_recipe", fileProcess, statusCh)
+    err = fm.ProcessFile(file, "upload_processing_recipe", fileProcess, statusCh)
+    if err != nil {
+        fmt.Printf("Processing error: %v\n", err)
+    }
 }()
 
 for processUpdate := range statusCh {
-    latestStatus := processUpdate.GetLatestProcessingStatus()
+    latestStatus := processUpdate.LatestStatus
     if latestStatus.Error != nil {
         fmt.Printf("Processing error: %v\n", latestStatus.Error)
     } else if latestStatus.Done {
-        fmt.Println("Processing completed successfully")
+        fmt.Printf("Processing completed successfully\n")
+        for _, resultingFile := range latestStatus.ResultingFiles {
+            fmt.Printf("Resulting file: %s\n", resultingFile.FileName)
+            fmt.Printf("  Local file path: %s\n", resultingFile.LocalFilePath)
+            fmt.Printf("  URL: %s\n", resultingFile.URL)
+            fmt.Printf("  File size: %d bytes\n", resultingFile.FileSize)
+            fmt.Printf("  MIME type: %s\n", resultingFile.MimeType)
+        }
     } else {
         fmt.Printf("Progress: %d%% - %s\n", latestStatus.Percentage, latestStatus.StatusDescription)
     }

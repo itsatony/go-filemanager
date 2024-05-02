@@ -1,4 +1,40 @@
 // file_manager.go
+
+// Package filemanager provides a flexible and extensible file management system
+// for handling file storage, retrieval, and processing using a plugin-based architecture.
+//
+// The main components of the filemanager package are:
+//
+// - FileManager: The central structure that manages file storage, retrieval, and processing.
+//   It provides methods for initializing the FileManager, adding processing plugins,
+//   loading recipes, and processing files.
+//
+// - ManagedFile: Represents a file managed by the FileManager. It contains information
+//   such as the file name, MIME type, URL, local file path, file size, metadata, and
+//   processing errors.
+//
+// - FileProcess: Represents a file processing task. It includes the incoming file name,
+//   recipe name, and processing updates. It provides methods for adding processing updates
+//   and retrieving the latest processing status.
+//
+// - ProcessingPlugin: An interface that defines the contract for processing plugins.
+//   Processing plugins are responsible for processing files based on specific requirements.
+//
+// - Recipe: Represents a processing recipe that specifies the accepted MIME types, file size
+//   constraints, processing steps, and output formats for a file processing task.
+//
+// - ProcessingStatus: Represents the status of a file processing task. It includes information
+//   such as the process ID, timestamp, processor name, status description, progress percentage,
+//   error (if any), completion status, and resulting files.
+//
+// - ProcessingResultFile: Represents a resulting file from a file processing task. It contains
+//   information such as the file name, local file path, URL, file size, and MIME type.
+//
+// The filemanager package provides a high-level API for managing files and processing them
+// using various plugins and recipes. It abstracts the complexities of file storage and
+// processing, allowing developers to focus on defining processing plugins and recipes to
+// suit their specific requirements.
+
 package filemanager
 
 import (
@@ -34,19 +70,18 @@ const (
 type FileProcess struct {
 	ID                string
 	IncomingFileName  string
-	RecipyName        string
+	RecipeName        string
 	ProcessingUpdates []ProcessingStatus
+	LatestStatus      *ProcessingStatus
 }
 
 func (fp *FileProcess) AddProcessingUpdate(update ProcessingStatus) {
 	fp.ProcessingUpdates = append(fp.ProcessingUpdates, update)
+	fp.LatestStatus = &update
 }
 
 func (fp *FileProcess) GetLatestProcessingStatus() *ProcessingStatus {
-	if len(fp.ProcessingUpdates) == 0 {
-		return nil
-	}
-	return &fp.ProcessingUpdates[len(fp.ProcessingUpdates)-1]
+	return fp.LatestStatus
 }
 
 func NewFileProcess(incomingFileName, recipeName string) *FileProcess {
@@ -54,7 +89,7 @@ func NewFileProcess(incomingFileName, recipeName string) *FileProcess {
 	return &FileProcess{
 		ID:               id,
 		IncomingFileName: incomingFileName,
-		RecipyName:       recipeName,
+		RecipeName:       recipeName,
 	}
 }
 
