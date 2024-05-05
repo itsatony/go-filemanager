@@ -4,6 +4,7 @@ package filemanager
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -237,4 +238,69 @@ func isValidMimeType(mimeType string, acceptedMimeTypes []string) bool {
 		}
 	}
 	return false
+}
+
+// RunProcessingStep applies a single processing step to a ManagedFile.
+func (fm *FileManager) RunProcessingStep(file *ManagedFile, pluginName string, params map[string]any, targetStorageType FileStorageType) (*ManagedFile, error) {
+	fm.mu.RLock()
+	plugin, exists := fm.processingPlugins[pluginName]
+	fm.mu.RUnlock()
+	if !exists {
+		return nil, fmt.Errorf("processing plugin not found: %s", pluginName)
+	}
+
+	// Wrap the file in a slice as some plugins may expect multiple files
+	files := []*ManagedFile{file}
+
+	// Create a dummy FileProcess to monitor the progress
+	fileProcess := NewFileProcess(file.FileName, "SingleStepProcess")
+	fileProcess.AddProcessingUpdate(ProcessingStatus{
+		ProcessID:         fileProcess.ID,
+		TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+		ProcessorName:     pluginName,
+		StatusDescription: "Initiating single step processing",
+	})
+
+	// Execute the plugin processing
+	processedFiles, err := plugin.Process(files, fileProcess)
+	if err != nil {
+		fileProcess.AddProcessingUpdate(ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     pluginName,
+			StatusDescription: "Error during processing",
+			Error:             err,
+			Done:              true,
+		})
+		return nil, err
+	}
+
+	if len(processedFiles) == 0 {
+		return nil, fmt.Errorf("no file processed by plugin: %s", pluginName)
+	}
+
+	// Assume the first file is the one we're interested in (since we provided one file)
+	resultFile := processedFiles[0]
+
+	// If a target storage type is specified, ensure the file is moved accordingly
+	if targetStorageType != "" {
+		localPath := fm.GetLocalPathForFile(targetStorageType, resultFile.FileName)
+		if localPath != resultFile.LocalFilePath {
+			err := os.Rename(resultFile.LocalFilePath, localPath)
+			if err != nil {
+				return nil, err
+			}
+			resultFile.LocalFilePath = localPath
+		}
+	}
+
+	fileProcess.AddProcessingUpdate(ProcessingStatus{
+		ProcessID:         fileProcess.ID,
+		TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+		ProcessorName:     pluginName,
+		StatusDescription: "Processing completed successfully",
+		Done:              true,
+	})
+
+	return resultFile, nil
 }
