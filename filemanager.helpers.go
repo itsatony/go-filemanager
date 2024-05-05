@@ -1,6 +1,10 @@
 package filemanager
 
 import (
+	"io"
+	"mime/multipart"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -18,4 +22,78 @@ func NID(prefix string, length int) (nid string) {
 		nid = prefix + "_" + nid
 	}
 	return nid
+}
+
+// CreateManagedFileFromPath creates a ManagedFile from a given local path.
+func (fm *FileManager) CreateManagedFileFromPath(localPath string, targetStorageType FileStorageType) (*ManagedFile, error) {
+	if !FileExists(localPath) {
+		return nil, ErrLocalFileNotFound
+	}
+
+	fileSize := int64(0)
+	fileInfo, err := os.Stat(localPath)
+	if err != nil {
+		return nil, err
+	}
+	fileSize = fileInfo.Size()
+
+	mimeType, err := GuessMimeType(localPath)
+	if err != nil {
+		return nil, err
+	}
+
+	managedFile := &ManagedFile{
+		FileName:      filepath.Base(localPath),
+		LocalFilePath: localPath,
+		FileSize:      fileSize,
+		MimeType:      mimeType,
+		MetaData:      make(map[string]any),
+	}
+
+	// Move file if not in the correct location
+	targetPath := fm.GetLocalPathForFile(targetStorageType, managedFile.FileName)
+	if localPath != targetPath {
+		err = os.Rename(localPath, targetPath)
+		if err != nil {
+			return nil, err
+		}
+		managedFile.LocalFilePath = targetPath
+	}
+
+	return managedFile, nil
+}
+
+// CreateManagedFileFromFileHeader creates a ManagedFile from a multipart.FileHeader which is typical in HTTP file uploads.
+func (fm *FileManager) CreateManagedFileFromFileHeader(fileHeader *multipart.FileHeader, targetStorageType FileStorageType) (*ManagedFile, error) {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	localFilePath := fm.GetLocalPathForFile(targetStorageType, fileHeader.Filename)
+	outFile, err := os.Create(localFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, file)
+	if err != nil {
+		return nil, err
+	}
+
+	fileSize := int64(fileHeader.Size)
+	mimeType, err := GuessMimeType(localFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ManagedFile{
+		FileName:      filepath.Base(fileHeader.Filename),
+		LocalFilePath: localFilePath,
+		FileSize:      fileSize,
+		MimeType:      mimeType,
+		MetaData:      make(map[string]any),
+	}, nil
 }

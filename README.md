@@ -4,6 +4,7 @@ The FileManager package is a powerful and flexible solution for handling and pro
 
 ## Versions
 
+- v0.4.0 Added 2 helpers to create ManagedFiles without Processing from  multipart.FileHeader  and another from a local file path.
 - v0.3.0 Added support for multiple output files, improved error handling, and enhanced processing status updates with resulting file information.
 
 ## Features
