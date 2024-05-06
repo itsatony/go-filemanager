@@ -60,6 +60,14 @@ func (fm *FileManager) CreateManagedFileFromPath(localPath string, targetStorage
 		managedFile.LocalFilePath = targetPath
 	}
 
+	if targetStorageType == FileStorageTypePublic {
+		pubUrl, err := fm.GetPublicUrlForFile(managedFile.LocalFilePath)
+		if err != nil {
+			return nil, err
+		}
+		managedFile.URL = pubUrl
+	}
+
 	return managedFile, nil
 }
 

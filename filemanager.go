@@ -41,6 +41,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -178,13 +179,18 @@ func (aifm *FileManager) GetLocalPathForFile(target FileStorageType, filename st
 	return localPath
 }
 
-func (aifm *FileManager) GetPublicUrlForFile(localFilePath string) (url string, err error) {
+func (aifm *FileManager) GetPublicUrlForFile(localFilePath string) (pubUrl string, err error) {
 	// first check if the local file path has our local public base path - if not, return error
 	if !strings.HasPrefix(localFilePath, aifm.publicLocalBasePath) {
-		return url, ErrLocalFileNotFound
+		return pubUrl, ErrLocalFileNotFound
 	}
 	relativePath := strings.TrimPrefix(localFilePath, aifm.publicLocalBasePath)
-	return path.Join(aifm.baseUrl, relativePath), nil
+
+	pubUrl, err = joinURL(aifm.baseUrl, relativePath)
+	if err != nil {
+		return pubUrl, err
+	}
+	return pubUrl, nil
 }
 
 func (aifm *FileManager) GetPublicLocalBasePath() string {
@@ -267,4 +273,33 @@ func FileExists(filePath string) bool {
 		return false
 	}
 	return false
+}
+
+func joinURL(baseURL, relativePath string) (string, error) {
+	// Ensure the base URL ends with a slash
+	if !strings.HasSuffix(baseURL, "/") {
+		baseURL += "/"
+	}
+
+	// Remove the starting slash from relativePath if present
+	if strings.HasPrefix(relativePath, "/") {
+		relativePath = strings.TrimPrefix(relativePath, "/")
+	}
+
+	// Parse the base URL
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Parse the relative path as a URL
+	rel, err := url.Parse(relativePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Resolve the relative URL against the base URL
+	resolvedURL := base.ResolveReference(rel)
+
+	return resolvedURL.String(), nil
 }
