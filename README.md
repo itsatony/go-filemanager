@@ -4,7 +4,7 @@ The FileManager package is a powerful and flexible solution for handling and pro
 
 ## Versions
 
-- v0.4.3 added support for multiple output files in processing recipes with pattern-based file naming and examples. added support for creating paths with outfput file names.
+- v0.4.4 added support for multiple output files in processing recipes with pattern-based file naming and examples. added support for creating paths with outfput file names.
 - v0.4.2 fixed public URL generation
 - v0.4.1 Added fm.RunProcessingStep helper to run a single processing step instead of a pre-loaded recipe.
 - v0.4.0 Added 2 helpers to create ManagedFiles without Processing from  multipart.FileHeader  and another from a local file path.

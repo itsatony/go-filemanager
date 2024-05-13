@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const Version = "0.4.3"
+const Version = "0.4.4"
 
 var (
 	ErrRecipeNotFound           = errors.New("recipe not found")
