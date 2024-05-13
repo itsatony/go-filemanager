@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const Version = "0.4.3"
+
 var (
 	ErrRecipeNotFound           = errors.New("recipe not found")
 	ErrInvalidMimeType          = errors.New("invalid MIME type")
