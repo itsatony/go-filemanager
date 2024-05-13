@@ -4,6 +4,7 @@ The FileManager package is a powerful and flexible solution for handling and pro
 
 ## Versions
 
+- v0.4.3 added support for multiple output files in processing recipes with pattern-based file naming and examples. added support for creating paths with outfput file names.
 - v0.4.2 fixed public URL generation
 - v0.4.1 Added fm.RunProcessingStep helper to run a single processing step instead of a pre-loaded recipe.
 - v0.4.0 Added 2 helpers to create ManagedFiles without Processing from  multipart.FileHeader  and another from a local file path.
@@ -138,6 +139,28 @@ for processUpdate := range statusCh {
 ## Example Recipes
 
 Here are a few example recipes that demonstrate the usage of different processing plugins:
+
+### File Upload Recipe
+
+this demonstrates a file upload recipe that accepts image/jpeg, image/png, and application/pdf files, with a minimum file size of 1 byte and a maximum file size of 50 MB. The recipe includes a ClamAV plugin to scan the uploaded files for viruses and two output formats: original and backup. The target file names are specified using date-based patterns and metadata values.
+
+```yaml
+name: file_upload_with_metadata
+accepted_mime_types:
+  - image/jpeg
+  - image/png
+  - application/pdf
+min_file_size: 1
+max_file_size: 52428800
+processing_steps:
+  - plugin_name: clamav
+output_formats:
+  - format: original
+    target_file_names:
+      - "uploads/{date:2006/01/02}/{metadata.userID}/{filename}"
+      - "backups/{date:2006/01/02}/{metadata.requestID}/{filename}"
+    storage_type: public
+```
 
 ### Image Processing Recipe
 
@@ -300,12 +323,6 @@ processing_steps:
 ```
 
 The plugin will automatically detect image files based on their MIME type and extract the Exif metadata.
-
-## Versions
-
-- v0.2.0: updated processUpdates to include more information.
-- v0.1.2: Minor updates and improvements to the FileManager package. Added a processor plugin for file-format conversion of .docx and .xlsx to text, markdown and csv. added exif metadata extraction processor.
-- v0.1.0: Initial release with basic file storage and retrieval functionality. File Upload handling and recipe-based processing with a few example recipes and processor plugins.
 
 ## Installation
 

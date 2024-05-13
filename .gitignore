@@ -23,3 +23,4 @@ go.work
 .env
 
 code2markdown.sh
+project_code.md

@@ -4,7 +4,12 @@ package filemanager
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -151,9 +156,32 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 	}
 
 	var outputFiles []*ManagedFile
+	if file.MetaData == nil {
+		file.MetaData = make(map[string]any)
+	}
 
 	for _, outputFormat := range recipe.OutputFormats {
 		for _, targetFileName := range outputFormat.TargetFileNames {
+			// Perform variable replacement in the target file name
+			targetFileName = ReplaceFileNameVariables(targetFileName, file)
+
+			// Create the necessary directories if they don't exist
+			targetDir := filepath.Dir(targetFileName)
+			err := os.MkdirAll(targetDir, os.ModePerm)
+			if err != nil {
+				status := ProcessingStatus{
+					ProcessID:         fileProcess.ID,
+					TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+					ProcessorName:     "FileStorage",
+					StatusDescription: fmt.Sprintf("Failed to create directory: %s", targetDir),
+					Error:             err,
+					Done:              true,
+				}
+				fileProcess.AddProcessingUpdate(status)
+				statusCh <- fileProcess
+				return
+			}
+
 			outputFile := &ManagedFile{
 				FileName: targetFileName,
 				MetaData: file.MetaData,
@@ -185,7 +213,7 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 			outputFile.MimeType = file.MimeType
 			outputFile.FileSize = file.FileSize
 
-			err := outputFile.Save()
+			err = outputFile.Save()
 			if err != nil {
 				status := ProcessingStatus{
 					ProcessID:         fileProcess.ID,
@@ -303,4 +331,41 @@ func (fm *FileManager) RunProcessingStep(file *ManagedFile, pluginName string, p
 	})
 
 	return resultFile, nil
+}
+
+func ReplaceFileNameVariables(fileName string, file *ManagedFile) string {
+	// Replace {metadata.whatever} with the corresponding value from file.MetaData
+	metadataRegex := regexp.MustCompile(`{metadata\.([^}]+)}`)
+	fileName = metadataRegex.ReplaceAllStringFunc(fileName, func(match string) string {
+		key := strings.TrimPrefix(match, "{metadata.")
+		key = strings.TrimSuffix(key, "}")
+		value, ok := file.MetaData[key]
+		if ok {
+			return fmt.Sprintf("%v", value)
+		}
+		return ""
+	})
+
+	// Replace {filename} with file.FileName
+	fileName = strings.ReplaceAll(strings.ToLower(fileName), "{filename}", file.FileName)
+
+	// Replace {date:pattern} with the formatted date
+	dateRegex := regexp.MustCompile(`{date:([^}]+)}`)
+	fileName = dateRegex.ReplaceAllStringFunc(fileName, func(match string) string {
+		pattern := strings.TrimPrefix(match, "{date:")
+		pattern = strings.TrimSuffix(pattern, "}")
+		t, err := time.Parse(pattern, time.Now().Format(pattern))
+		if err != nil {
+			return strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10)
+		}
+		return t.Format(pattern)
+	})
+
+	// Automatically add the correct file extension based on the MIME type
+	extension := mime.TypeByExtension(file.MimeType)
+	if extension != "" {
+		fileName = fileName + extension
+	}
+
+	return fileName
 }

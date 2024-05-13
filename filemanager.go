@@ -282,9 +282,7 @@ func joinURL(baseURL, relativePath string) (string, error) {
 	}
 
 	// Remove the starting slash from relativePath if present
-	if strings.HasPrefix(relativePath, "/") {
-		relativePath = strings.TrimPrefix(relativePath, "/")
-	}
+	relativePath = strings.TrimPrefix(relativePath, "/")
 
 	// Parse the base URL
 	base, err := url.Parse(baseURL)
