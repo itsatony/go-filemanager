@@ -8,12 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
-
-const Version = "0.4.4"
 
 var (
 	ErrRecipeNotFound           = errors.New("recipe not found")
@@ -27,23 +24,23 @@ type ProcessingPlugin interface {
 }
 
 type ProcessingStep struct {
-	PluginName string         `yaml:"pluginName"`
+	PluginName string         `yaml:"plugin_name"`
 	Params     map[string]any `yaml:"params"`
 }
 
 type OutputFormat struct {
 	Format          string          `yaml:"format"`
-	TargetFileNames []string        `yaml:"targetFileNames"`
-	StorageType     FileStorageType `yaml:"storageType"` // public, private, temp
+	TargetFileNames []string        `yaml:"target_file_names"`
+	StorageType     FileStorageType `yaml:"storage_type"` // public, private, temp
 }
 
 type Recipe struct {
 	Name              string           `yaml:"name"`
-	AcceptedMimeTypes []string         `yaml:"acceptedMimeTypes"`
-	MinFileSize       int64            `yaml:"minFileSize"`
-	MaxFileSize       int64            `yaml:"maxFileSize"`
-	ProcessingSteps   []ProcessingStep `yaml:"processingSteps"`
-	OutputFormats     []OutputFormat   `yaml:"outputFormats"`
+	AcceptedMimeTypes []string         `yaml:"accepted_mime_types"`
+	MinFileSize       int64            `yaml:"min_file_size"`
+	MaxFileSize       int64            `yaml:"max_file_size"`
+	ProcessingSteps   []ProcessingStep `yaml:"processing_steps"`
+	OutputFormats     []OutputFormat   `yaml:"output_formats"`
 }
 
 type ProcessingResultFile struct {
@@ -79,10 +76,11 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 			Done:              true,
 		}
 		fileProcess.AddProcessingUpdate(status)
+		fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) Recipe(%s) not found.\n", file.FileName, recipeName))
 		statusCh <- fileProcess
 		return
 	}
-
+	fm.LogTo("DEBUG", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) using recipe(%s)\n", file.FileName, recipeName))
 	if !isValidMimeType(file.MimeType, recipe.AcceptedMimeTypes) {
 		status := ProcessingStatus{
 			ProcessID:         fileProcess.ID,
@@ -93,6 +91,7 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 			Done:              true,
 		}
 		fileProcess.AddProcessingUpdate(status)
+		fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) MimeTypeCheck filed: \n%v\n", file.FileName, status))
 		statusCh <- fileProcess
 		return
 	}
@@ -107,6 +106,8 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 			Done:              true,
 		}
 		fileProcess.AddProcessingUpdate(status)
+		// fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER.ProcessFile #3] Processing file ERROR: \n%v\n\n", status))
+		fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) filesize check failed\n", file.FileName))
 		statusCh <- fileProcess
 		return
 	}
@@ -114,17 +115,22 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 	files := []*ManagedFile{file}
 
 	for _, step := range recipe.ProcessingSteps {
+		if step.PluginName == "" {
+			continue
+		}
 		plugin, ok := fm.processingPlugins[step.PluginName]
 		if !ok {
 			status := ProcessingStatus{
 				ProcessID:         fileProcess.ID,
 				TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
 				ProcessorName:     step.PluginName,
-				StatusDescription: fmt.Sprintf("Processing plugin not found: %s", step.PluginName),
-				Error:             fmt.Errorf("processing plugin not found: %s", step.PluginName),
+				StatusDescription: fmt.Sprintf("processing plugin(%s) not found", step.PluginName),
+				Error:             fmt.Errorf("processing plugin(%s) not found", step.PluginName),
 				Done:              true,
 			}
 			fileProcess.AddProcessingUpdate(status)
+			// fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER.ProcessFile #4] Processing file ERROR: \n%v\n\n", status))
+			fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) Processing-Plugin(%s) not found!\n", file.FileName, step.PluginName))
 			statusCh <- fileProcess
 			return
 		}
@@ -140,6 +146,7 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 				Done:              true,
 			}
 			fileProcess.AddProcessingUpdate(status)
+			fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) Step failed:\n%v\n\n", file.FileName, status))
 			statusCh <- fileProcess
 			return
 		}
@@ -154,6 +161,7 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 			Percentage:        percentage,
 		}
 		fileProcess.AddProcessingUpdate(status)
+		// fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER.ProcessFile #6] Processing file status update: \n%v\n\n", status))
 		statusCh <- fileProcess
 	}
 
@@ -161,42 +169,33 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 	if file.MetaData == nil {
 		file.MetaData = make(map[string]any)
 	}
+	file.MetaData["process_id"] = fileProcess.ID
 
 	for _, outputFormat := range recipe.OutputFormats {
-		for _, targetFileName := range outputFormat.TargetFileNames {
+		for _, targetFilepathnameTemplate := range outputFormat.TargetFileNames {
 			// Perform variable replacement in the target file name
-			targetFileName = ReplaceFileNameVariables(targetFileName, file)
-
-			// Create the necessary directories if they don't exist
-			targetDir := filepath.Dir(targetFileName)
-			err := os.MkdirAll(targetDir, os.ModePerm)
-			if err != nil {
-				status := ProcessingStatus{
-					ProcessID:         fileProcess.ID,
-					TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
-					ProcessorName:     "FileStorage",
-					StatusDescription: fmt.Sprintf("Failed to create directory: %s", targetDir),
-					Error:             err,
-					Done:              true,
-				}
-				fileProcess.AddProcessingUpdate(status)
-				statusCh <- fileProcess
-				return
+			targetFilePath := ReplaceFileNameVariables(targetFilepathnameTemplate, file)
+			// add file extension if not present
+			if filepath.Ext(targetFilePath) == "" {
+				targetFilePath = targetFilePath + filepath.Ext(file.FileName)
 			}
-
+			// fm.logger("DEBUG", fmt.Sprintf("################## [ProcessFile]: AFTER FILE-REPLACEMENT: targetFilePath(%s)\n", targetFilePath))
+			fullFilePath, _, fileName := getFilePathAndName("", targetFilePath)
+			// fm.logger("DEBUG", fmt.Sprintf("################## [ProcessFile]: AFTER EXTRACTION: fullFilePath(%s), fileName(%s)\n", fullFilePath, fileName))
 			outputFile := &ManagedFile{
-				FileName: targetFileName,
+				FileName: fileName,
 				MetaData: file.MetaData,
+				FileSize: file.FileSize,
+				MimeType: file.MimeType,
 			}
 
 			switch outputFormat.StorageType {
 			case FileStorageTypePrivate:
-				outputFile.LocalFilePath = fm.GetPrivateLocalFilePath(targetFileName)
+				outputFile.LocalFilePath = fm.GetPrivateLocalFilePath(fullFilePath)
 			case FileStorageTypeTemp:
-				outputFile.LocalFilePath = fm.GetLocalTemporaryFilePath(targetFileName)
+				outputFile.LocalFilePath = fm.GetLocalTemporaryFilePath(fullFilePath)
 			case FileStorageTypePublic:
-				outputFile.LocalFilePath = fm.GetPublicLocalFilePath(targetFileName)
-				outputFile.URL, _ = fm.GetPublicUrlForFile(outputFile.LocalFilePath)
+				outputFile.LocalFilePath = fm.GetPublicLocalFilePath(fullFilePath)
 			default:
 				status := ProcessingStatus{
 					ProcessID:         fileProcess.ID,
@@ -207,15 +206,20 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 					Done:              true,
 				}
 				fileProcess.AddProcessingUpdate(status)
+				// fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER.ProcessFile.OutputFormatCheck #6] Processing file ERROR: \n%v\n\n", status))
 				statusCh <- fileProcess
 				return
 			}
+			// fm.logger("DEBUG", fmt.Sprintf("################## [ProcessFile]: BASE-PATH-ADDITION: fullFilePath(%s)\n", outputFile.LocalFilePath))
+
+			if outputFormat.StorageType == FileStorageTypePublic {
+				outputFile.URL, _ = fm.GetPublicUrlForFile(outputFile.LocalFilePath)
+			} else {
+				outputFile.URL = ""
+			}
 
 			outputFile.Content = file.Content
-			outputFile.MimeType = file.MimeType
-			outputFile.FileSize = file.FileSize
-
-			err = outputFile.Save()
+			err := outputFile.Save()
 			if err != nil {
 				status := ProcessingStatus{
 					ProcessID:         fileProcess.ID,
@@ -226,6 +230,8 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 					Done:              true,
 				}
 				fileProcess.AddProcessingUpdate(status)
+				// fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER.ProcessFile.FileSave #1] Processing file ERROR: \n%v\n\n", status))
+				fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) Saving Result failed: \n%v\n", file.FileName, status))
 				statusCh <- fileProcess
 				return
 			}
@@ -258,12 +264,14 @@ func (fm *FileManager) ProcessFile(file *ManagedFile, recipeName string, filePro
 	}
 	fileProcess.AddProcessingUpdate(status)
 	fileProcess.LatestStatus.Done = true
+	fm.LogTo("INFO", fmt.Sprintf("[FileManager.ProcessFile] Processing file(%s) COMPLETED: \n%v\n", file.FileName, status))
 	statusCh <- fileProcess
 }
 
 func isValidMimeType(mimeType string, acceptedMimeTypes []string) bool {
 	for _, accepted := range acceptedMimeTypes {
-		if mimeType == accepted {
+		// check lowercase matching and match as prefix
+		if strings.HasPrefix(strings.ToLower(mimeType), strings.ToLower(accepted)) {
 			return true
 		}
 	}
@@ -348,23 +356,8 @@ func ReplaceFileNameVariables(fileName string, file *ManagedFile) string {
 		return ""
 	})
 
-	// Replace {filename} with file.FileName
-	fileName = strings.ReplaceAll(strings.ToLower(fileName), "{filename}", file.FileName)
-
-	// Replace {date:pattern} with the formatted date
-	dateRegex := regexp.MustCompile(`{date:([^}]+)}`)
-	fileName = dateRegex.ReplaceAllStringFunc(fileName, func(match string) string {
-		pattern := strings.TrimPrefix(match, "{date:")
-		pattern = strings.TrimSuffix(pattern, "}")
-		t, err := time.Parse(pattern, time.Now().Format(pattern))
-		if err != nil {
-			return strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10)
-		}
-		return t.Format(pattern)
-	})
-
 	// Automatically add the correct file extension based on the MIME type
-	extension := mime.TypeByExtension(file.MimeType)
+	extension := mime.TypeByExtension(file.FileName)
 	if extension != "" {
 		fileName = fileName + extension
 	}

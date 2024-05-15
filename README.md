@@ -4,6 +4,7 @@ The FileManager package is a powerful and flexible solution for handling and pro
 
 ## Versions
 
+- v0.5.0 lots of fixes and addition of an optional logger function to the FileManager struct
 - v0.4.4 added support for multiple output files in processing recipes with pattern-based file naming and examples. added support for creating paths with outfput file names.
 - v0.4.2 fixed public URL generation
 - v0.4.1 Added fm.RunProcessingStep helper to run a single processing step instead of a pre-loaded recipe.
@@ -157,8 +158,11 @@ processing_steps:
 output_formats:
   - format: original
     target_file_names:
-      - "uploads/{date:2006/01/02}/{metadata.userID}/{filename}"
-      - "backups/{date:2006/01/02}/{metadata.requestID}/{filename}"
+      # the metadata needs to be supplied when submitting a ManagedFile for processing by populating the metadata map
+      # metadata.process_id is set by the filemanager processor
+      - "uploads/{metadata.user_id}/{metadata.incoming_filename}"
+      - "backups/{metadata.process_id}/{metadata.incoming_filename}"
+    # public, private, temp
     storage_type: public
 ```
 
@@ -180,7 +184,8 @@ processing_steps:
       aspect_ratio: "4:3"
 output_formats:
   - format: webp
-    target_file_name: processed_image.webp
+    target_file_names:
+      -  processed_image.webp
     storage_type: public
 ```
 
@@ -200,7 +205,8 @@ processing_steps:
       output_format: markdown
 output_formats:
   - format: md
-    target_file_name: extracted_text.md
+    target_file_names:
+      -  extracted_text.md
     storage_type: private
 ```
 
@@ -228,10 +234,12 @@ processing_steps:
       compression_level: medium
 output_formats:
   - format: jpg
-    target_file_name: processed_upload.jpg
+    target_file_names:
+      -  processed_upload.jpg
     storage_type: public
   - format: pdf
-    target_file_name: compressed_upload.pdf
+    target_file_names:
+      -  compressed_upload.pdf
     storage_type: private
 ```
 
@@ -339,3 +347,8 @@ Contributions to the FileManager package are welcome! If you find any issues or 
 ## License
 
 The FileManager package is open-source software licensed under the [MIT License](LICENSE).
+
+## TODO / Roadmap
+
+- tests
+- less annoying printing

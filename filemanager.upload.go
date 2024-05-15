@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, statusCh chan<- *FileProcess) (*ManagedFile, error) {
-	tempFile, err := os.CreateTemp(fm.localTempPath, "upload-*")
+	// todo: make incoming filename safe!
+	tempFile, err := os.CreateTemp(fm.localTempPath, "upload-*_."+filepath.Ext(fileProcess.IncomingFileName))
 	if err != nil {
 		status := ProcessingStatus{
 			ProcessID:         fileProcess.ID,
@@ -44,13 +46,17 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, s
 			Done:              true,
 		}
 		fileProcess.AddProcessingUpdate(status)
+
+		fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER #1] Uploading file ERROR: %s - %d%% \n%v", fileProcess.IncomingFileName, 100, status))
 		statusCh <- fileProcess
 		return nil, err
 	}
 
+	fpath, _, fname := getFilePathAndName("", tempFile.Name())
+
 	managedFile := &ManagedFile{
-		FileName:      tempFile.Name(),
-		LocalFilePath: tempFile.Name(),
+		FileName:      fname,
+		LocalFilePath: fpath,
 	}
 
 	managedFile.UpdateMimeType()
@@ -71,7 +77,14 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, s
 		Done:              false,
 		ResultingFiles:    []ProcessingResultFile{resultingFile},
 	}
+	if progressReader.FileProcess != nil && progressReader.FileProcess.LatestStatus != nil {
+		status.Percentage = progressReader.FileProcess.LatestStatus.Percentage
+		if status.Percentage == 100 {
+			status.Done = true
+		}
+	}
 	fileProcess.AddProcessingUpdate(status)
+	fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER #2] Uploading file: %s - %d%% \n%v", fileProcess.IncomingFileName, 100, status))
 	statusCh <- fileProcess
 
 	return managedFile, nil
@@ -83,6 +96,7 @@ type ProgressReader struct {
 	Uploaded    int64
 	StatusCh    chan<- *FileProcess
 	FileProcess *FileProcess
+	Done        bool
 }
 
 func (r *ProgressReader) Read(p []byte) (int, error) {
@@ -98,8 +112,11 @@ func (r *ProgressReader) Read(p []byte) (int, error) {
 		}
 	}
 
-	if r.Size > 0 {
+	if r.Size > 0 && !r.Done {
 		percentage := int(float64(r.Uploaded) / float64(r.Size) * 100)
+		if percentage > 100 {
+			percentage = 100
+		}
 		status := ProcessingStatus{
 			ProcessID:         r.FileProcess.ID,
 			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
@@ -107,11 +124,16 @@ func (r *ProgressReader) Read(p []byte) (int, error) {
 			StatusDescription: fmt.Sprintf("Uploading file: %s", r.FileProcess.IncomingFileName),
 			Percentage:        percentage,
 		}
-		r.FileProcess.AddProcessingUpdate(status)
-		select {
-		case r.StatusCh <- r.FileProcess:
-		default:
+		if percentage == 100 {
+			status.Done = true
+		} else {
+			r.FileProcess.AddProcessingUpdate(status)
+			r.StatusCh <- r.FileProcess
 		}
+		// select {
+		// case r.StatusCh <- r.FileProcess:
+		// default:
+		// }
 	}
 
 	return n, err

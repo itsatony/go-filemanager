@@ -120,7 +120,8 @@ processing_steps:
   - plugin_name: format_converter
 output_formats:
   - format: txt
-    target_file_name: converted_text.txt
+    target_file_names:
+      - converted_text.txt
     storage_type: private
 ```
 
@@ -138,7 +139,8 @@ processing_steps:
   - plugin_name: format_converter
 output_formats:
   - format: md
-    target_file_name: converted_markdown.md
+    target_file_names:
+      - converted_markdown.md
     storage_type: private
 ```
 
@@ -157,7 +159,8 @@ processing_steps:
   - plugin_name: format_converter
 output_formats:
   - format: csv
-    target_file_name: converted_csv.csv
+    target_file_names:
+      - converted_csv.csv
     storage_type: private
 ```
 
@@ -237,10 +240,12 @@ processing_steps:
       compression_level: high
 output_formats:
   - format: md
-    target_file_name: extracted_text.md
+    target_file_names:
+      - extracted_text.md
     storage_type: private
   - format: pdf
-    target_file_name: compressed_extract.pdf
+    target_file_names:
+      - compressed_extract.pdf
     storage_type: public
 ```
 

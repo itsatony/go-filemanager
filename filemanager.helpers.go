@@ -105,3 +105,22 @@ func (fm *FileManager) CreateManagedFileFromFileHeader(fileHeader *multipart.Fil
 		MetaData:      make(map[string]any),
 	}, nil
 }
+
+func (fm *FileManager) LogTo(level string, message string) {
+	if fm.logger != nil {
+		fm.logger(level, message)
+	}
+}
+
+func getFilePathAndName(localBasePath string, filePathName string) (fullPath string, dirPath string, pureFileName string) {
+	// Join the local base path and the file name to form the full path
+	fullPath = filepath.Join(localBasePath, filePathName)
+
+	// Extract the directory path without the filename
+	dirPath = filepath.Dir(fullPath)
+
+	// Extract the pure filename (including extension)
+	pureFileName = filepath.Base(fullPath)
+
+	return fullPath, dirPath, pureFileName
+}

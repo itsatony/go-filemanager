@@ -1,7 +1,6 @@
 package filemanager
 
 import (
-	"mime"
 	"os"
 	"path/filepath"
 )
@@ -79,6 +78,9 @@ func (entity *ManagedFile) EnsurePublicURL(fm *FileManager) (pubUrl string, err 
 }
 
 func (entity *ManagedFile) SetMetaData(key string, value any) {
+	if entity.MetaData == nil {
+		entity.MetaData = make(map[string]any)
+	}
 	entity.MetaData[key] = value
 }
 
@@ -92,7 +94,8 @@ func (entity *ManagedFile) GetMetaData(key string) (value any) {
 
 func (file *ManagedFile) Save() error {
 	// Create the directory if it doesn't exist
-	err := os.MkdirAll(filepath.Dir(file.LocalFilePath), os.ModePerm)
+	dirs := filepath.Dir(file.LocalFilePath)
+	err := os.MkdirAll(dirs, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -111,8 +114,8 @@ func (file *ManagedFile) Save() error {
 	}
 
 	// Update the file metadata
-	file.FileSize = int64(len(file.Content))
-	file.MimeType = mime.TypeByExtension(filepath.Ext(file.LocalFilePath))
+	file.FileSize = file.UpdateFilesize()
+	file.MimeType = file.UpdateMimeType()
 
 	return nil
 }

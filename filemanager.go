@@ -39,6 +39,7 @@ package filemanager
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -51,6 +52,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"gopkg.in/yaml.v2"
 )
+
+const Version = "0.5.0"
 
 var (
 	ErrLocalFileNotFound = errors.New("local file not found")
@@ -94,6 +97,8 @@ func NewFileProcess(incomingFileName, recipeName string) *FileProcess {
 	}
 }
 
+type LogAdapter func(logLevel string, logContent string)
+
 type FileManager struct {
 	publicLocalBasePath  string
 	privateLocalBasePath string
@@ -102,10 +107,13 @@ type FileManager struct {
 	processingPlugins    map[string]ProcessingPlugin
 	recipes              map[string]Recipe
 	mu                   sync.RWMutex
+	logger               LogAdapter
 }
 
-func NewFileManager(publicLocalBasePath, privateLocalBasePath, baseUrl, tempPath string) *FileManager {
-	return &FileManager{
+func emptyLogger(logLevel string, logContent string) {}
+
+func NewFileManager(publicLocalBasePath, privateLocalBasePath, baseUrl, tempPath string, logger LogAdapter) *FileManager {
+	fm := &FileManager{
 		publicLocalBasePath:  publicLocalBasePath,
 		privateLocalBasePath: privateLocalBasePath,
 		baseUrl:              baseUrl,
@@ -113,6 +121,13 @@ func NewFileManager(publicLocalBasePath, privateLocalBasePath, baseUrl, tempPath
 		processingPlugins:    make(map[string]ProcessingPlugin),
 		recipes:              make(map[string]Recipe),
 	}
+
+	if logger == nil {
+		fm.logger = emptyLogger
+	} else {
+		fm.logger = logger
+	}
+	return fm
 }
 
 func (fm *FileManager) AddProcessingPlugin(name string, plugin ProcessingPlugin) {
@@ -125,6 +140,7 @@ func (fm *FileManager) LoadRecipes(recipesDir string) error {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 
+	fm.LogTo("DEBUG", fmt.Sprintf("[FileManager] ########============== Loading recipes from: (%s)\n", recipesDir))
 	files, err := os.ReadDir(recipesDir)
 	if err != nil {
 		return err
@@ -142,16 +158,27 @@ func (fm *FileManager) LoadRecipes(recipesDir string) error {
 		filePath := filepath.Join(recipesDir, file.Name())
 		data, err := os.ReadFile(filePath)
 		if err != nil {
+			fm.LogTo("DEBUG", fmt.Sprintf("[FileManager] ########============== Error loading recipe: (%s)\n%v\n", file.Name(), err))
 			continue
 		}
 
 		var recipe Recipe
 		err = yaml.Unmarshal(data, &recipe)
 		if err != nil {
+			fm.LogTo("DEBUG", fmt.Sprintf("[FileManager] ########============== Error unmarshalling recipe: (%s)\n%v\n", file.Name(), err))
 			continue
 		}
 
+		// check if all the processing plugins in the recipe are loaded, warn if not
+		for _, step := range recipe.ProcessingSteps {
+			_, ok := fm.processingPlugins[step.PluginName]
+			if !ok {
+				fm.LogTo("DEBUG", fmt.Sprintf("[FileManager] ########============== Processor not found: (%s)\n", step.PluginName))
+			}
+		}
+
 		fm.recipes[recipe.Name] = recipe
+		fm.LogTo("DEBUG", fmt.Sprintf("[FileManager] ########============== Loaded recipe: (%s)\n%v\n", recipe.Name, recipe))
 	}
 
 	return nil
