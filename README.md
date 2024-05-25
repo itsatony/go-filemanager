@@ -4,6 +4,7 @@ The FileManager package is a powerful and flexible solution for handling and pro
 
 ## Versions
 
+- v0.5.1 added hlper CreateManagedFileFromResponseBody to create a ManagedFile from a http.Response.Body (io.ReadCloser)
 - v0.5.0 lots of fixes and addition of an optional logger function to the FileManager struct
 - v0.4.4 added support for multiple output files in processing recipes with pattern-based file naming and examples. added support for creating paths with outfput file names.
 - v0.4.2 fixed public URL generation

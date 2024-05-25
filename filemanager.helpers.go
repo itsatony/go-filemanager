@@ -1,6 +1,7 @@
 package filemanager
 
 import (
+	"errors"
 	"io"
 	"mime/multipart"
 	"os"
@@ -9,6 +10,10 @@ import (
 	"time"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
+)
+
+var (
+	ErrNilResponseBody = errors.New("response body is nil")
 )
 
 const idAlphabet string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
@@ -101,6 +106,38 @@ func (fm *FileManager) CreateManagedFileFromFileHeader(fileHeader *multipart.Fil
 		FileName:      filepath.Base(fileHeader.Filename),
 		LocalFilePath: localFilePath,
 		FileSize:      fileSize,
+		MimeType:      mimeType,
+		MetaData:      make(map[string]any),
+	}, nil
+}
+
+// CreateManagedFileFromResponseBody creates a ManagedFile from a response body. will NOT CLOSE the response body.
+func (fm *FileManager) CreateManagedFileFromResponseBody(filename string, responseBody io.ReadCloser, targetStorageType FileStorageType) (*ManagedFile, error) {
+	if responseBody == nil {
+		return nil, ErrNilResponseBody
+	}
+
+	localFilePath := fm.GetLocalPathForFile(targetStorageType, filename)
+	outFile, err := os.Create(localFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer outFile.Close()
+
+	writtenBytes, err := io.Copy(outFile, responseBody)
+	if err != nil {
+		return nil, err
+	}
+
+	mimeType, err := GuessMimeType(localFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ManagedFile{
+		FileName:      filepath.Base(filename),
+		LocalFilePath: localFilePath,
+		FileSize:      writtenBytes,
 		MimeType:      mimeType,
 		MetaData:      make(map[string]any),
 	}, nil
