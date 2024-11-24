@@ -84,9 +84,25 @@ func (fm *FileManager) HandleFileUpload(r io.Reader, fileProcess *FileProcess, s
 		}
 	}
 	fileProcess.AddProcessingUpdate(status)
+	// now, we need to read the file again to get the content
+	managedFile.Content, err = os.ReadFile(managedFile.LocalFilePath)
+	if err != nil {
+		status := ProcessingStatus{
+			ProcessID:         fileProcess.ID,
+			TimeStamp:         int(time.Now().UnixNano() / int64(time.Millisecond)),
+			ProcessorName:     "FileUpload",
+			StatusDescription: "Failed to read content of uploaded file",
+			Error:             err,
+			Done:              true,
+		}
+		fileProcess.AddProcessingUpdate(status)
+
+		fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER #3] Uploading file ERROR: %s - %d%% \n%v", fileProcess.IncomingFileName, 100, status))
+		statusCh <- fileProcess
+		return nil, err
+	}
 	fm.LogTo("DEBUG", fmt.Sprintf("[GO-FILEMANAGER #2] Uploading file: %s - %d%% \n%v", fileProcess.IncomingFileName, 100, status))
 	statusCh <- fileProcess
-
 	return managedFile, nil
 }
 
